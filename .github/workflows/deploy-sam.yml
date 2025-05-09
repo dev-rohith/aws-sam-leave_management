@@ -1,12 +1,12 @@
 name: Sync SAM App to AWS
 
 on:
-    push:
-        branches:
-            - main
-    pull_request:
-        branches:
-            - main
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -24,8 +24,7 @@ jobs:
 
       - name: Install AWS SAM CLI
         uses: aws-actions/setup-sam@v2
-        with:
-          version: latest
+        # Omitting 'version' to always install the latest stable version
 
       - name: Set up AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
