@@ -35,8 +35,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install esbuild as dev dependency
-        run: npm install --save-dev esbuild
+      - name: Install esbuild as global
+        run: npm install -g esbuild
 
       - name: Build SAM app
         run: sam build
