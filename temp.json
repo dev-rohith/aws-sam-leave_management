@@ -1,0 +1,27 @@
+{
+    "Comment": "Leave approval workflow",
+    "StartAt": "CheckApproval",
+    "States": {
+      "CheckApproval": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.status",
+            "StringEquals": "approved",
+            "Next": "NotifyUser"
+          }
+        ],
+        "Default": "NoOp"
+      },
+      "NotifyUser": {
+        "Type": "Task",
+        "Resource": "${NotifyUserFunctionArn}",
+        "End": true
+      },
+      "NoOp": {
+        "Type": "Pass",
+        "End": true
+      }
+    }
+  }
+  

@@ -1,0 +1,270 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Leave request system with Step Functions and custom authorizer
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+
+Resources:
+
+                                               #  Resources below
+  LeaveApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors: "'*'"
+      Auth:
+        DefaultAuthorizer: LambdaAuthorizer 
+        Authorizers:
+          LambdaAuthorizer:                
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+            Identity:
+              Header: Authorization
+  
+  LeaveTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: LeaveManagementByRohith
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: leaveId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+       - IndexName: EmailLeaveIdIndex
+         KeySchema:
+           - AttributeName: email
+             KeyType: HASH
+           - AttributeName: leaveId
+             KeyType: RANGE
+         Projection:
+           ProjectionType: ALL
+
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./auth
+      Handler: auth.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: arn:aws:secretsmanager:us-east-1:817901212217:secret:LeaveJWTSecret-XFz9VS
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - auth.ts
+      OutExtensions: {".ts": ".js"}
+
+  SignupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./auth
+      Handler: signup.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+              TableName: !Ref LeaveTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+      Events:
+        Signup:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaveApi
+            Path: /signup
+            Method: POST
+            Auth:
+              Authorizer: NONE      
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - signup.ts
+      OutExtensions: {".ts": ".js"}
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./auth
+      Handler: login.handler
+      Policies:
+       - DynamoDBCrudPolicy:
+           TableName: !Ref LeaveTable
+       - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: arn:aws:secretsmanager:us-east-1:817901212217:secret:LeaveJWTSecret-XFz9VS
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+      Events:
+        Login:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaveApi
+            Path: /login
+            Method: POST
+            Auth:
+              Authorizer: NONE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - login.ts
+      OutExtensions: {".ts": ".js"}
+
+  ApplyLeaveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./functions
+      Handler: applyLeave.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveTable
+        - Statement:
+            - Effect: Allow
+              Action: states:StartExecution
+              Resource: !GetAtt RohithStateMachine.Arn 
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+          STATE_MACHINE_ARN: !GetAtt RohithStateMachine.Arn  
+      Events:
+        ApplyLeave:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaveApi
+            Path: /apply-leave
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - applyLeave.ts
+      OutExtensions: {".ts": ".js"}
+ 
+  SendApprovalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./functions
+      Handler: sendApproval.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - SESCrudPolicy:
+            IdentityName: '*'
+      Environment:
+        Variables:
+          SES_SENDER_EMAIL: rohith.vatambedu@antstack.io
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - sendApproval.ts
+      OutExtensions: {".ts": ".js"}
+     
+  NotifyUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./functions
+      Handler: notifyUser.handler
+      Policies:
+        - SESCrudPolicy:
+            IdentityName: '*'
+      Environment:
+        Variables:
+          SES_SENDER_EMAIL: rohith.vatambedu@antstack.io
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - notifyUser.ts
+      OutExtensions: {".ts": ".js"}
+
+  ProcessUserRequestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./functions
+      Handler: processApproval.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:SendTaskSuccess
+            Resource: !GetAtt RohithStateMachine.Arn 
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+          STATE_MACHINE_ARN: !GetAtt RohithStateMachine.Arn    
+      Events:
+        processLeaveRequest:
+          Type: Api
+          Properties:
+            RestApiId: !Ref LeaveApi
+            Path: /users/{userName}/leave-request/{leaveId}
+            Method: GET
+            Auth:
+              Authorizer: NONE                
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - processApproval.ts                     
+      OutExtensions: {".ts": ".js"}
+
+  RohithStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: step-function.asl.json
+      DefinitionSubstitutions:
+        NotifyUserFunctionArn: !GetAtt NotifyUserFunction.Arn
+        SendApprovalFunction: !GetAtt SendApprovalFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref NotifyUserFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SendApprovalFunction
+
+
+  
