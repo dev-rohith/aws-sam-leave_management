@@ -24,7 +24,6 @@ jobs:
 
       - name: Install AWS SAM CLI
         uses: aws-actions/setup-sam@v2
-        # Omitting 'version' to always install the latest stable version
 
       - name: Set up AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -35,7 +34,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-        working-directory: ./functions
 
       - name: Build SAM app
         run: sam build
