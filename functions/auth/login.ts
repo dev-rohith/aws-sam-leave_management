@@ -26,7 +26,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (!userName || !password) return createResponse(400, 'Username and password are required');
 
     const secret = await smClient.send(
-      new GetSecretValueCommand({
+      new GetSecretValueCommand({ 
         SecretId: 'LeaveJWTSecret',
       })
     );
