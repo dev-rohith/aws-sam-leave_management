@@ -1,17 +1,93 @@
-# openapi: 3.0.1
-# info:
-#   title: Hello API
-#   version: '1.0'
+openapi: 3.0.1
+info:
+  title: Leave Request System API
+  version: 1.0.0
+servers:
+  - url: https://${LeaveApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
+x-amazon-apigateway-cors:
+  allowOrigins: ["*"]
+  allowMethods: ["GET", "POST", "OPTIONS"]
+  allowHeaders: ["Content-Type", "Authorization", "X-Amz-Date"]
+paths:
+  /apply-leave:
+    post:
+      x-amazon-apigateway-integration:
+        uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SignupFunction.Arn}/invocations"
+        httpMethod: POST
+        type: aws_proxy
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
+      security: []
 
-# paths:
-#   /hello:
-#     get:
-#       summary: Hello endpoint
-#       description: Simple test endpoint
-#       responses:
-#         '200':
-#           description: OK
-#       x-amazon-apigateway-integration:
-#         uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:123456789012:function:HelloWorldFunction/invocations
-#         httpMethod: POST
-#         type: aws_proxy
+  /login:
+    post:
+      x-amazon-apigateway-integration:
+        uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LoginFunction.Arn}/invocations"
+        httpMethod: POST
+        type: aws_proxy
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
+      security: []
+
+  /apply-leave:
+    post:
+      x-amazon-apigateway-integration:
+        uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApplyLeaveFunction.Arn}/invocations"
+        httpMethod: POST
+        type: aws_proxy
+      security:
+        - LambdaAuthorizer: [] 
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
+
+  /users/{userName}/leave-request/{leaveId}:
+    get:
+      parameters:
+        - name: userName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: leaveId
+          in: path
+          required: true
+          schema:
+            type: string
+      x-amazon-apigateway-integration:
+        uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProcessUserRequestFunction.Arn}/invocations"
+        httpMethod: POST
+        type: aws_proxy
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
+      security: [] 
+
+components:
+  securitySchemes:
+    LambdaAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authorizer:
+        authorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+        authorizerResultTtlInSeconds: 300
+        type: request

@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import bcrypt from 'bcryptjs'
-import { createResponse } from '../utils/response';
+import { createResponse } from '../../utils/response'; 
 import {DynamoDBClient} from '@aws-sdk/client-dynamodb'
 import {DynamoDBDocumentClient, PutCommand} from '@aws-sdk/lib-dynamodb'
 

@@ -6,6 +6,8 @@ declare global {
         password?: string
 
       }
+
+      
       
     interface applyLeaveEvent {
       name: string,

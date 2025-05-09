@@ -1,10 +1,11 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { createResponse } from '../utils/response';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+
+import { createResponse } from '../../utils/response'; 
 
 const smClient = new SecretsManagerClient({});
 const client = new DynamoDBClient({ region: process.env.AWS_REGION });

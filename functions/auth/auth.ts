@@ -1,6 +1,6 @@
 import { APIGatewayTokenAuthorizerEvent, APIGatewayAuthorizerResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import { createResponse, generatePolicy } from '../utils/response';
+import { generatePolicy } from '../../utils/policy'; 
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
 const smClient = new SecretsManagerClient({});
