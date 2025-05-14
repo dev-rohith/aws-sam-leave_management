@@ -44,7 +44,7 @@ jobs:
       - name: Deploy SAM stack
         run: |
           sam deploy \
-            --stack-name leave-management-by-rohith \
+            --stack-name leave-management-app-by-rohith \
             --region us-east-1 \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
