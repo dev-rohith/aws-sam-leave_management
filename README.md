@@ -9,14 +9,6 @@ A lightweight, production-ready leave management system built using AWS SAM, Lam
 
 ---
 
-### ✅ Test Coverage (Jest)
-
-Coverage from automated tests using **Jest**:
-
-![Test Coverage](https://res.cloudinary.com/dlbyxcswi/image/upload/v1747252347/ChatGPT_Image_May_12_2025_08_55_13_AM_pw5qk5.png)
-
----
-
 ### 📐 Architecture Diagram
 
 ![Architecture Diagram](https://res.cloudinary.com/dlbyxcswi/image/upload/v1747250410/Screenshot_2025-05-15_004716_gnegum.png)
@@ -32,6 +24,14 @@ Coverage from automated tests using **Jest**:
 - Approver receives actionable email (Approve/Reject)
 - User gets notified upon approval or rejection
 - Fully serverless architecture with scalability
+
+---
+
+### ✅ Test Coverage (Jest)
+
+Coverage from automated tests using **Jest**:
+
+![Test Coverage](https://res.cloudinary.com/dlbyxcswi/image/upload/v1747252347/ChatGPT_Image_May_12_2025_08_55_13_AM_pw5qk5.png)
 
 ---
 
