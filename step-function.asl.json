@@ -1,0 +1,96 @@
+{
+    "Comment": "Leave Request Approval Workflow",
+    "StartAt": "sendRequestEmail",
+    "States": {
+        "sendRequestEmail": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+            "Parameters": {
+                "FunctionName": "${sendRequestFunctionArn}",
+                "Payload": {
+                    "userName.$": "$.userName",
+                    "leaveId.$": "$.leaveId",
+                    "userEmail.$": "$.userEmail",
+                    "startDate.$": "$.startDate",
+                    "endDate.$": "$.endDate",
+                    "taskToken.$": "$$.Task.Token",
+                    "apiBaseUrl.$": "$.apiBaseUrl",
+                    "reason.$": "$.reason"
+                }
+            },
+            "ResultPath": "$.approvalResult",
+            "TimeoutSeconds": 3600,
+            "Catch": [
+                {
+                    "ErrorEquals": ["States.Timeout"],
+                    "ResultPath": "$.errorInfo",
+                    "Next": "MergeErrorAndInput"
+                }
+            ],
+            "Next": "CheckApproval"
+        },
+        "MergeErrorAndInput": {
+            "Type": "Pass",
+            "Parameters": {
+                "leaveId.$": "$.leaveId",
+                "userEmail.$": "$.userEmail",
+                "userName.$": "$.userName",
+                "startDate.$": "$.startDate",
+                "endDate.$": "$.endDate",
+                "reason.$": "$.reason",
+                "error": {
+                    "Error.$": "$.errorInfo.Error",
+                    "Cause.$": "$.errorInfo.Cause"
+                }
+            },
+            "Next": "HandleFailure"
+        },
+        "HandleFailure": {
+            "Type": "Task",
+            "Resource": "${NotifyUserFunctionArn}",
+            "Parameters": {
+                "leaveId.$": "$.leaveId",
+                "userEmail.$": "$.userEmail",
+                "userName.$": "$.userName",
+                "leaveStartDate.$": "$.startDate",
+                "leaveEndDate.$": "$.endDate",
+                "reason.$": "$.reason"
+            },
+            "End": true
+        },
+        "CheckApproval": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.approvalResult.approvalStatus",
+                    "StringEquals": "APPROVED",
+                    "Next": "NotifyUser"
+                },
+                {
+                    "Variable": "$.approvalResult.approvalStatus",
+                    "StringEquals": "REJECTED",
+                    "Next": "NotifyUser"
+                }
+            ],
+            "Default": "FailState"
+        },
+        "NotifyUser": {
+            "Type": "Task",
+            "Resource": "${NotifyUserFunctionArn}",
+            "Parameters": {
+                "leaveId.$": "$.leaveId",
+                "userEmail.$": "$.userEmail",
+                "userName.$": "$.userName",
+                "approvalStatus.$": "$.approvalResult.approvalStatus",
+                "leaveStartDate.$": "$.startDate",
+                "leaveEndDate.$": "$.endDate",
+                "reason.$": "$.reason"
+            },
+            "End": true
+        },
+        "FailState": {
+            "Type": "Fail",
+            "Cause": "Approval process failed or timed out"
+        }
+    }
+}

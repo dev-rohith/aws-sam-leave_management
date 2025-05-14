@@ -1,0 +1,283 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Simple API Gateway-only SAM template with OpenAPI integration
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+
+Resources:
+  LeaveTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: LeaveManagementTableByRohith
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: userName
+          AttributeType: S
+        - AttributeName: leaveId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: EmailLeaveIdIndex
+          KeySchema:
+            - AttributeName: userName
+              KeyType: HASH
+            - AttributeName: leaveId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  RestApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt SignupFunction.Arn                
+                  - !GetAtt LoginFunction.Arn                
+                  - !GetAtt NotifyUserFunction.Arn                
+                  - !GetAtt sendRequestFunction.Arn                
+                  - !GetAtt ApplyLeaveFunction.Arn                
+                  - !GetAtt ProcessUserRequestFunction.Arn                
+
+
+  LeaveApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: ./api/backend-api.yaml
+      Auth:
+        Authorizers:
+          LambdaAuthorizer:
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+        AddDefaultAuthorizerToCorsPreflight: false
+
+
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 7
+      CodeUri: .
+      Handler: functions/auth/authorizer.handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue  #aws secret manager manual access
+              Resource: arn:aws:secretsmanager:us-east-1:817901212217:secret:LeaveJWTSecret-XFz9VS 
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/auth/authorizer.ts
+        External:
+          - '@aws-sdk/client-secrets-manager'
+
+  SignupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 40
+      CodeUri: .
+      Handler: functions/auth/signup.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveTable
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/auth/signup.ts
+        External:
+          - '@aws-sdk/client-dynamodb'
+          - '@aws-sdk/lib-dynamodb'
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 40
+      CodeUri: .
+      Handler: functions/auth/login.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveTable
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: arn:aws:secretsmanager:us-east-1:817901212217:secret:LeaveJWTSecret-XFz9VS
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/auth/login.ts
+        External:
+          - '@aws-sdk/client-dynamodb'
+          - '@aws-sdk/lib-dynamodb'
+          - '@aws-sdk/client-secrets-manager'
+
+  ApplyLeaveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 25
+      CodeUri: .
+      Handler: functions/leave/applyLeave.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveTable
+        - Statement:
+            - Effect: Allow
+              Action: states:StartExecution
+              Resource: !GetAtt RohithStateMachine.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+          STATE_MACHINE_ARN: !GetAtt RohithStateMachine.Arn
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/leave/applyLeave.ts
+        External:
+          - '@aws-sdk/client-dynamodb'
+          - '@aws-sdk/lib-dynamodb'
+          - '@aws-sdk/client-sfn'
+
+  sendRequestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 30
+      CodeUri: .
+      Handler: functions/leave/sendRequest.handler
+      Policies:
+        - SESCrudPolicy:
+            IdentityName: '*'
+      Environment:
+        Variables:
+          SES_SENDER_EMAIL: rohith.vatambedu@antstack.io
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/leave/sendRequest.ts
+        External:
+          - '@aws-sdk/lib-dynamodb'
+          - '@aws-sdk/client-dynamodb'
+          - '@aws-sdk/client-ses'
+
+  NotifyUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 14
+      CodeUri: .
+      Handler: functions/leave/notifyUser.handler
+      Policies:
+        - SESCrudPolicy:
+            IdentityName: '*'
+      Environment:
+        Variables:
+          SES_SENDER_EMAIL: rohith.vatambedu@antstack.io
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/leave/notifyUser.ts
+        External:
+          - '@aws-sdk/client-ses'
+
+  ProcessUserRequestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 24
+      CodeUri: .
+      Handler: functions/leave/processRequest.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref LeaveTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:SendTaskSuccess
+            Resource: !GetAtt RohithStateMachine.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref LeaveTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - functions/leave/processRequest.ts
+        External:
+          - '@aws-sdk/client-dynamodb'
+          - '@aws-sdk/client-sfn'
+          - '@aws-sdk/lib-dynamodb'
+
+  RohithStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: step-function.asl.json
+      DefinitionSubstitutions:
+        NotifyUserFunctionArn: !GetAtt NotifyUserFunction.Arn
+        sendRequestFunctionArn: !GetAtt sendRequestFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref NotifyUserFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref sendRequestFunction
+
+Outputs:
+  LeaveApi:
+    Description: URL of the API Gateway
+    Value: !Sub "https://${LeaveApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+

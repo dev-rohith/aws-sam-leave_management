@@ -1,0 +1,197 @@
+openapi: "3.0.3"
+info:
+  title:
+    Fn::Sub: "${AWS::StackName}-leave-management-api"
+  description:
+    Fn::Sub: "Leave Management APIs for ${AWS::StackName} project"
+  version: "1.0"
+paths:
+  /signup:
+    post:
+      security: []
+      summary: User signup
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        "200":
+          description: User signed up successfully
+        "400":
+          description: Bad request
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: "POST"
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SignupFunction.Arn}/invocations"
+        credentials:
+          Fn::Sub: "${RestApiRole.Arn}"
+
+  /login:
+    post:
+      security: []
+      summary: User login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        "200":
+          description: User logged in successfully
+        "401":
+          description: Unauthorized
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LoginFunction.Arn}/invocations"
+        credentials:
+          Fn::Sub: "${RestApiRole.Arn}"
+
+
+  /apply-leave:
+    post:
+      security:
+        - LambdaAuthorizer: []
+      summary: Apply for leave
+      operationId: applyLeave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyLeaveRequest'
+      responses:
+        "200":
+          description: Leave applied successfully
+        "400":
+          description: Bad request
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApplyLeaveFunction.Arn}/invocations"
+        credentials:
+          Fn::Sub: "${RestApiRole.Arn}"
+
+
+  /users/{userName}/leave-request/{leaveId}:
+    get:
+      security: []
+      summary: Process the approval request
+      operationId: processRequest
+      requestBody:
+        description: Request body for approval action
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                requestToken:
+                  type: string
+              required:
+                - action
+                - requestToken
+      responses:
+        "200":
+          description: Approval processed successfully
+        "400":
+          description: Bad request due to missing parameters or invalid input
+        "500":
+          description: Internal server error
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProcessUserRequestFunction.Arn}/invocations"
+        credentials:
+          Fn::Sub: "${RestApiRole.Arn}"
+
+components:
+  schemas:
+    SignupRequest:
+      type: object
+      required:
+        - userName
+        - email
+        - password
+      properties:
+        userName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          
+    ApplyLeaveRequest:
+      type: object
+      required:
+        - userName
+        - userEmail
+        - startDate
+        - endDate
+        - reason
+      properties:
+        userName:
+          type: string
+        userEmail:
+          type: string
+          format: email
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+
+    processRequestRequest:
+      type: object
+      required:
+        - action
+        - requestToken
+      properties:
+        action:
+          type: string
+          enum: [approved, rejected]
+        requestToken:
+          type: string
+
+  securitySchemes:
+    LambdaAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authorizer:
+        type: token
+        identitySource: method.request.header.Authorization
+        authorizerResultTtlInSeconds: 0
+        authorizerUri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations
+ 
+
+
+  
